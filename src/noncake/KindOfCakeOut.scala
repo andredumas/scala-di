@@ -4,63 +4,74 @@ class UserRepository {
   def findUser = println("Find User")
 }
 
-class UserService {
-  context: AppContextTraits => // Injected dependencies
-    
+class UserService(
+    userRepository: UserRepository) {
   def authenticate = {
-	userRepository.findUser
-	println("Authenticated user")
+  	userRepository.findUser
+  	println("Authenticated user")
   }
 }
 
-trait ComplicatedDependencies {
-   context: AppContextTraits => // Injected dependencies
-     
-   def anotherMethod = {
-     println("Complicated")
-     userRepository.findUser
-     userService.authenticate
-   }
+class ComplicatedDependencies(
+    userRepository: UserRepository, 
+    userService: UserService) {
+  
+  def anotherMethod = {
+    println("Complicated")
+    userRepository.findUser
+    userService.authenticate
+  }
 }
 
 // Trait defining all dependencies and app context, config data for the app
-trait AppContextTraits {
+trait ContextTraits {
   val userRepository: UserRepository
   val userService: UserService
 }
 
 // Real app config defining all required dependencies and config
-trait AppContext extends AppContextTraits {
+trait Context extends ContextTraits {
   val userRepository: UserRepository = new UserRepository
-  //val userService: UserService = new UserService
+  val userService: UserService = new UserService(userRepository)
 }
 
-trait TestAppContext 
-	extends AppContextTraits
+trait TestContext extends Context
 {
-  val userRepository: UserRepository = new UserRepository {
+  override val userRepository: UserRepository = new UserRepository {
     override def findUser = println("Mocked Find User")
   }
-//  val userService: UserService = new UserService {
-//    override def authenticate = println("Mocked Authenticate!!")
-//  }
+  override val userService: UserService = new UserService(userRepository) {
+    override def authenticate = println("Mocked Authenticate!!")
+  }
 }
-
-/**
- * Simulates the actual controller play can reference
- */
-object KindOfCakeOut extends /*AppContext with */KindOfCakeOutController  
 
 /**
  * Trait controller where dependencies injected
  */
 trait KindOfCakeOutController extends App {
-  /*context: AppContextTraits => // Injected dependencies
+  context: ContextTraits => // Injected dependencies
     
-  def test = {
-    context.userRepository.findUser
-    context.userService.authenticate
+  def action = {
+    userRepository.findUser
+    userService.authenticate
   }
   
-  test*/
+  action
 }
+
+/*
+ * Couple of Apps to test concepts of Controller with real dependencies and same controller 
+ * with mocked dependencies
+ */
+
+/**
+ * Simulates the actual controller play can reference. NOTE: The trait include order. Normally logically it
+ * would be the other way round, but since I am calling the action in the CakeOutController, the 
+ * dependencies need to have been initialised first by the AppContext. 
+ */
+object KindOfCakeOut extends Context with KindOfCakeOutController  
+
+/**
+ * Same controller trait, mocked dependencies 
+ */
+object KindOfCakeOutTest extends TestContext with KindOfCakeOutController  
